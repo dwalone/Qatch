@@ -60,6 +60,7 @@ void Parser::parseLine(int &line_number, std::string &line, std::vector<std::uni
 {
     m_lineExecuted = false;
     std::string sym;
+    replaceVars(line_number, line);
     line = rtrim(ltrim(line));
     std::istringstream iss(line);
     iss>>sym;
@@ -72,7 +73,22 @@ void Parser::parseLine(int &line_number, std::string &line, std::vector<std::uni
     checkCustomGate(line_number, iss, sym, gateList, nQ, qR);
     checkComment(line_number, sym);
     checkEmpty(line_number, sym);
-    pAssert(m_lineExecuted, "Unknown symbol - '"+sym+"'", line_number);   
+    pAssert(m_lineExecuted, "Unknown symbol - '"+sym+"'", line_number);  
+    for (int i=0; i< m_vars.size(); ++i)
+    {
+        std::cout<<m_vars[i].first<<" "<<m_vars[i].second<<std::endl ;
+    }
+    std::cout<<std::endl;
+}
+
+void Parser::replaceVars(int &line_number,std::string &line)
+{
+    std::reverse(m_vars.begin(), m_vars.end());
+    for (const std::pair<std::string, std::string>& var : m_vars) 
+    {
+        line = replaceAll(line, var.first, var.second);
+    }
+    std::reverse(m_vars.begin(), m_vars.end());
 }
 
 void Parser::checkInit(int &line_number, std::istringstream &iss, std::string &sym, int &nQ, std::vector<c> &qR)
@@ -171,25 +187,27 @@ void Parser::checkCustomGate(int &line_number, std::istringstream &iss, std::str
     std::vector<std::unique_ptr<Gate>> gates;
     std::string line;
     int var;
-    std::vector<int> func_vars;
-    int i;
+    int i=0;
+    std::vector<std::string> func_vars;
     while (iss>>var) 
     {
-        func_vars.push_back(var);
+        func_vars.push_back(std::to_string(var));
     }
     pAssert(func_vars.size() == m_defs[sym].variables.size(), "invalid number of vars", line_number);
+    for (int i=0; i<func_vars.size(); ++i)
+    {
+        m_vars.push_back({m_defs[sym].variables[i], func_vars[i]});
+    }
     for (int cg_line_number=m_defs[sym].def_line+1; cg_line_number<m_defs[sym].endef_line; ++cg_line_number)
     {
         line = m_lines[cg_line_number-1];
-        i = 0;
-        for (const std::string& tbr : m_defs[sym].variables) 
-        {
-            line = replaceAll(line, tbr, std::to_string(func_vars[i]));
-            i = i + 1;
-        }
         parseLine(cg_line_number, line, gates, nQ, qR);
     }
     gateList.push_back(std::make_unique<CustomGate>(sym, std::move(gates)));
+    for (int i=0; i<func_vars.size(); ++i)
+    {
+        m_vars.pop_back();
+    }
     m_lineExecuted = true;
 }
 
@@ -235,29 +253,32 @@ void Parser::checkFor(int &line_number, std::istringstream &iss, std::string &sy
     data.endloop_line = m_lines.size();
     std::vector<int> loopCounter(end_idx-start_idx+1);
     std::iota(std::begin(loopCounter), std::end(loopCounter), start_idx);
-    std::reverse(std::begin(loopCounter), std::end(loopCounter));
     data.loop_counter = loopCounter;
     m_loops.push_back(data);
+    int loop_idx = m_vars.size();
+    m_vars.push_back({var, std::to_string(m_loops[loop_num].loop_counter[0])});
     for (int i=0; i<loopCounter.size(); ++i)
     {
+        m_vars[loop_idx].second = std::to_string(m_loops[loop_num].loop_counter[i]);
         for (lp_line_number=m_loops[loop_num].loop_line+1; lp_line_number<m_loops[loop_num].endloop_line; ++lp_line_number)
         {
-            line = m_lines[lp_line_number-1];        
-            line = replaceAll(line, var, std::to_string(m_loops[loop_num].loop_counter[i]));
-            parseLine(lp_line_number, line, gateList, nQ, qR);
+            line_number = lp_line_number;
+            line = m_lines[line_number-1];        
+            parseLine(line_number, line, gateList, nQ, qR);
         }
-
     }
     m_loops.pop_back();
-    m_inLoop = (m_loops.size()!=0);
     line_number = lp_line_number;
+    m_vars.pop_back();
     m_lineExecuted = true;   
 }
 
 void Parser::checkEndfor(int &line_number, std::istringstream &iss, std::string &sym)
 {
+    if (m_inDef) {m_lineExecuted=true; return;}
     if (sym != "endfor") {return;}
     pAssert(m_inLoop, "No loop defined", line_number);
+    m_inLoop = (m_loops.size()!=0);
     std::string check_extra;
     iss>>check_extra;
     pAssert(!(iss>>check_extra), "invalid syntax", line_number);
