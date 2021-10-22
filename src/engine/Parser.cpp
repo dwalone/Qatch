@@ -58,6 +58,11 @@ void Parser::parse(std::string filename, std::vector<std::unique_ptr<Gate>> &gat
 
 void Parser::parseLine(int &line_number, std::string &line, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
 {
+/*     for (int i=0; i< m_vars.size(); ++i)
+    {
+        std::cout<<m_vars[i].first<<" "<<m_vars[i].second<<" "<<line_number<<std::endl ;
+    } */
+    std::cout<<std::endl;
     m_lineExecuted = false;
     std::string sym;
     replaceVars(line_number, line);
@@ -74,11 +79,6 @@ void Parser::parseLine(int &line_number, std::string &line, std::vector<std::uni
     checkComment(line_number, sym);
     checkEmpty(line_number, sym);
     pAssert(m_lineExecuted, "Unknown symbol - '"+sym+"'", line_number);  
-    for (int i=0; i< m_vars.size(); ++i)
-    {
-        std::cout<<m_vars[i].first<<" "<<m_vars[i].second<<std::endl ;
-    }
-    std::cout<<std::endl;
 }
 
 void Parser::replaceVars(int &line_number,std::string &line)
@@ -86,6 +86,7 @@ void Parser::replaceVars(int &line_number,std::string &line)
     std::reverse(m_vars.begin(), m_vars.end());
     for (const std::pair<std::string, std::string>& var : m_vars) 
     {
+        if (!var.first.compare("-")) {break;}
         line = replaceAll(line, var.first, var.second);
     }
     std::reverse(m_vars.begin(), m_vars.end());
@@ -194,6 +195,7 @@ void Parser::checkCustomGate(int &line_number, std::istringstream &iss, std::str
         func_vars.push_back(std::to_string(var));
     }
     pAssert(func_vars.size() == m_defs[sym].variables.size(), "invalid number of vars", line_number);
+    m_vars.push_back({"-", "-"});
     for (int i=0; i<func_vars.size(); ++i)
     {
         m_vars.push_back({m_defs[sym].variables[i], func_vars[i]});
@@ -208,6 +210,7 @@ void Parser::checkCustomGate(int &line_number, std::istringstream &iss, std::str
     {
         m_vars.pop_back();
     }
+    m_vars.pop_back();
     m_lineExecuted = true;
 }
 
