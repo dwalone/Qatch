@@ -53,6 +53,7 @@ public:
     void checkEmpty(int &line_number, std::string &sym);
     double eval(std::string expr);
     void pAssert(bool condition, std::string statement, int line_number);
+    void replaceVars(int &line_number,std::string &line);
     ~Parser(){};
 
 private:
@@ -62,6 +63,8 @@ private:
     std::vector<std::string> m_lines;
     std::map<std::string, DefinitionData> m_defs;
     std::vector<LoopData> m_loops;
+    std::vector<std::pair<std::string,std::string>> m_vars;
+    int m_lineNumber;
     bool m_isInitialised;
     bool m_inDef;
     bool m_inLoop;
