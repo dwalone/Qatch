@@ -82,8 +82,7 @@ public:
     std::string replaceVar(std::string str, const std::string& from, const std::string& to);
     void parseControlQubits(int &line_number, std::vector<int> &cqs, std::istringstream &iss);
     void parseQubit(int &line_number, int &q, std::istringstream &iss);
-    void parseAngle(int &line_number, double &phi, std::istringstream &iss);
-    
+    void parseAngle(int &line_number, double &phi, std::istringstream &iss);   
     double eval(std::string expr);
     void pAssert(bool condition, std::string statement, int line_number);
     ~Parser(){};
@@ -96,7 +95,6 @@ private:
     bool m_isInitialised;
     bool m_inDef;
     bool m_inLoop;
-    bool m_lineExecuted;
     std::string m_currentDefName;
     std::map<std::string, Symbol> m_symbol_map;
 };

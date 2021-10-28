@@ -17,8 +17,9 @@ Parser::Parser()
     m_symbol_map["X"]       = X;
     m_symbol_map["CX"]      = CONTROLLED_X;
     m_symbol_map["Y"]       = Y;
-    m_symbol_map["CY"]      = CONTROLLED_ROTATION_Y;
+    m_symbol_map["CY"]      = CONTROLLED_Y;
     m_symbol_map["Z"]       = Z;
+    m_symbol_map["CZ"]      = CONTROLLED_Z;
     m_symbol_map["P"]       = PHASE_SHIFT;
     m_symbol_map["CP"]      = CONTROLLED_PHASE_SHIFT;
     m_symbol_map["RX"]      = ROTATION_X;
@@ -33,7 +34,6 @@ Parser::Parser()
     m_isInitialised = false;
     m_inDef = false;
     m_inLoop = false;
-    m_lineExecuted = false;
 }
 
 void Parser::parse(std::string filename, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
@@ -115,8 +115,7 @@ void Parser::initialChecksHandler(int &line_number, Symbol &symbol)
         if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number);}   
 
     } else if (symbol == END_FOR_LOOP) {
-        if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number);}  
-        pAssert(m_inLoop, "No loop defined", line_number);
+        if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number); pAssert(m_inLoop, "No loop defined", line_number);}  
 
     } else if (symbol >= IDENTITY && symbol <= CUSTOM) {
         if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number);}  
@@ -199,7 +198,6 @@ void Parser::definition(int &line_number, std::istringstream &iss)
     m_symbol_map[def_name] = CUSTOM;
     // Set environment variables
     m_inDef = true;
-    m_lineExecuted = true;
 }
 
 void Parser::endDefinition(int &line_number, std::istringstream &iss)
@@ -213,7 +211,6 @@ void Parser::endDefinition(int &line_number, std::istringstream &iss)
     m_defs[m_currentDefName].endef_line = line_number;
     // set environment variables
     m_inDef = false;
-    m_lineExecuted = true;
 }
 
 void Parser::forLoop(int &line_number, std::istringstream &iss, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR)
@@ -254,8 +251,7 @@ void Parser::forLoop(int &line_number, std::istringstream &iss, std::vector<std:
     }
     m_loops.pop_back();
     line_number = lp_line_number;
-    m_vars.pop_back();
-    m_lineExecuted = true;   
+    m_vars.pop_back();   
 }
 
 void Parser::endForLoop(int &line_number, std::istringstream &iss)
@@ -265,7 +261,6 @@ void Parser::endForLoop(int &line_number, std::istringstream &iss)
     iss>>check_extra;
     pAssert(!(iss>>check_extra), "invalid syntax", line_number);
     m_loops.back().endloop_line = line_number;
-    m_lineExecuted = true;
 }
 
 void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
@@ -278,23 +273,23 @@ void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbo
     // Command Action
     switch (symbol)
     {
-        case HADAMARD : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<HadamardGate>(aq));}
-        case X : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<XGate>(aq));} 
-        case Y : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<YGate>(aq));} 
-        case Z : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<ZGate>(aq));}  
-        case PHASE_SHIFT : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph));}
-        case ROTATION_X : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph));}
-        case ROTATION_Y : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph));}
-        case ROTATION_Z : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph));}
-        case SWAP : {parseQubit(nQ, aq, iss); parseQubit(nQ, sq, iss); gateList.push_back(std::make_unique<SwapGate>(aq, sq));}
-        case CONTROLLED_HADAMARD : {parseQubit(nQ, aq, iss); parseControlQubits(nQ,cqs, iss); gateList.push_back(std::make_unique<HadamardGate>(aq, cqs));}
-        case CONTROLLED_X : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<XGate>(aq, cqs));} 
-        case CONTROLLED_Y : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<YGate>(aq, cqs));} 
-        case CONTROLLED_Z : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<ZGate>(aq, cqs));} 
-        case CONTROLLED_PHASE_SHIFT : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs));}
-        case CONTROLLED_ROTATION_X : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph, cqs));}
-        case CONTROLLED_ROTATION_Y : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph, cqs));}
-        case CONTROLLED_ROTATION_Z : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph, cqs));}
+        case HADAMARD : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<HadamardGate>(aq));} break;
+        case X : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<XGate>(aq));} break;
+        case Y : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<YGate>(aq));} break;
+        case Z : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<ZGate>(aq));} break;
+        case PHASE_SHIFT : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph));} break;
+        case ROTATION_X : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph));} break;
+        case ROTATION_Y : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph));} break;
+        case ROTATION_Z : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph));} break;
+        case SWAP : {parseQubit(nQ, aq, iss); parseQubit(nQ, sq, iss); gateList.push_back(std::make_unique<SwapGate>(aq, sq));} break;
+        case CONTROLLED_HADAMARD : {parseQubit(nQ, aq, iss); parseControlQubits(nQ,cqs, iss); gateList.push_back(std::make_unique<HadamardGate>(aq, cqs));} break;
+        case CONTROLLED_X : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<XGate>(aq, cqs));} break;
+        case CONTROLLED_Y : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<YGate>(aq, cqs));} break;
+        case CONTROLLED_Z : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<ZGate>(aq, cqs));} break;
+        case CONTROLLED_PHASE_SHIFT : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs));} break;
+        case CONTROLLED_ROTATION_X : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph, cqs));} break;
+        case CONTROLLED_ROTATION_Y : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph, cqs));} break;
+        case CONTROLLED_ROTATION_Z : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph, cqs));} break;
         case CONTROLLED_SWAP : {parseQubit(nQ, aq, iss); parseQubit(nQ, sq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<SwapGate>(aq, sq, cqs));} 
     }
 }
