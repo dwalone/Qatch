@@ -203,7 +203,7 @@ void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbo
 {
     // Initalise command variables
     int aq;
-    parseQubit(nQ, aq, iss, nQ);
+    parseQubit(line_number, aq, iss, nQ);
     switch (symbol)
     {
         case IDENTITY : gateList.push_back(std::make_unique<IdentityGate>(aq)); return;
@@ -214,7 +214,7 @@ void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbo
         return;
     }
     std::vector<int> cqs;
-    parseControlQubits(nQ,cqs, iss, nQ);
+    parseControlQubits(line_number,cqs, iss, nQ);
     switch (symbol)
     {
         case CONTROLLED_HADAMARD :  gateList.push_back(std::make_unique<HadamardGate>(aq, cqs)); return;
@@ -229,8 +229,8 @@ void Parser::defaultAngleGate(int &line_number, std::istringstream &iss, Symbol 
 {
     int aq;
     double ph;
-    parseQubit(nQ, aq, iss, nQ);
-    parseAngle(nQ, ph, iss);
+    parseQubit(line_number, aq, iss, nQ);
+    parseAngle(line_number, ph, iss);
     switch (symbol)
     {
         case PHASE_SHIFT :  gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph)); return;
@@ -239,7 +239,7 @@ void Parser::defaultAngleGate(int &line_number, std::istringstream &iss, Symbol 
         case ROTATION_Z :   gateList.push_back(std::make_unique<RotationZGate>(aq, ph)); return;
     }
     std::vector<int> cqs;
-    parseControlQubits(nQ, cqs, iss, nQ);
+    parseControlQubits(line_number, cqs, iss, nQ);
     switch (symbol)
     {
         case CONTROLLED_PHASE_SHIFT :   gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs)); return;
@@ -253,8 +253,8 @@ void Parser::defaultMultiQubitGate(int &line_number, std::istringstream &iss, Sy
 {
     int aq;
     int q2;
-    parseQubit(nQ, aq, iss, nQ);
-    parseQubit(nQ, q2, iss, nQ);
+    parseQubit(line_number, aq, iss, nQ);
+    parseQubit(line_number, q2, iss, nQ);
     switch (symbol)
     {
         case SWAP : gateList.push_back(std::make_unique<SwapGate>(aq, q2)); return;
@@ -274,7 +274,7 @@ void Parser::customGate(int &line_number, std::istringstream &iss, std::string &
     std::vector<std::string> func_vars;
     while (iss>>var) 
     {
-        func_vars.push_back(std::to_string(eval(var, line_number)));
+        func_vars.push_back(var);
     }
     pAssert(func_vars.size() == m_defs[sym].variables.size(), "invalid number of vars", line_number);
     m_vars.push_back({NESTED_FUNC_SPLIT, NESTED_FUNC_SPLIT});
@@ -347,7 +347,6 @@ void Parser::forLoop(int &line_number, std::istringstream &iss, std::vector<std:
     int loop_num = m_loops.size();
     std::string line;
     int lp_line_number;
-    pAssert(m_isInitialised, "Circuit must be initialised", line_number);
     std::string var;
     int start_idx;
     int end_idx;
