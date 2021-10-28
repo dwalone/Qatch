@@ -14,6 +14,8 @@
 #include "CustomGate.h"
 #include "DefaultGate.h"
 
+const std::string NESTED_FUNC_SPLIT = "-";
+
 enum Symbol {
     // Keywords
     INITIALISE,
@@ -67,15 +69,21 @@ struct LoopData
 class Parser
 {
 public:
+
     Parser();
     void parse(std::vector<std::unique_ptr<Gate>> &m_gateList, int &nQ, std::vector<c> &qR);
     void scanLines(std::string &filename);
     void reset();
+    ~Parser(){};
+
+private:
+
     void parseLine(int &line_number, std::string &line, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR);
     void formatLine(int &line_number,std::string &line);
     void symHandler(int &line_number, std::istringstream &iss, Symbol &symbol, std::string &symbolstr);
     void initialChecksHandler(int &line_number, Symbol &symbol);
     void commandHandler(int &line_number, std::istringstream &iss, Symbol &symbol, std::string &symbolstr, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR);
+
     void initialise(int &line_number, std::istringstream &iss, int &nQ, std::vector<c> &qR);
     void definition(int &line_number, std::istringstream &iss);
     void endDefinition(int &line_number, std::istringstream &iss);
@@ -85,15 +93,17 @@ public:
     void defaultAngleGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ);
     void defaultMultiQubitGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ);
     void customGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR);
-    std::string replaceVar(std::string str, const std::string& from, const std::string& to);
+
+    std::string replaceVar(std::string str, const std::string &from, const std::string &to);
+
     void parseControlQubits(int &line_number, std::vector<int> &cqs, std::istringstream &iss);
     void parseQubit(int &line_number, int &q, std::istringstream &iss);
-    void parseAngle(int &line_number, double &phi, std::istringstream &iss);   
-    double eval(std::string expr);
-    void pAssert(bool condition, std::string statement, int line_number);
-    ~Parser(){};
+    void parseAngle(int &line_number, double &phi, std::istringstream &iss); 
 
-private:
+    double eval(std::string expr);
+
+    void pAssert(bool condition, std::string statement, int line_number);
+
     std::vector<std::string> m_lines;
     std::map<std::string, DefinitionData> m_defs;
     std::vector<LoopData> m_loops;

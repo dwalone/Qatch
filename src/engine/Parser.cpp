@@ -89,7 +89,7 @@ void Parser::formatLine(int &line_number,std::string &line)
     std::reverse(m_vars.begin(), m_vars.end());
     for (const std::pair<std::string, std::string>& var : m_vars) 
     {
-        if (!var.first.compare("-")) {break;}
+        if (!var.first.compare(NESTED_FUNC_SPLIT)) {break;}
         line = replaceVar(line, var.first, var.second);
     }
     std::reverse(m_vars.begin(), m_vars.end());
@@ -277,7 +277,7 @@ void Parser::customGate(int &line_number, std::istringstream &iss, std::string &
         func_vars.push_back(std::to_string(var));
     }
     pAssert(func_vars.size() == m_defs[sym].variables.size(), "invalid number of vars", line_number);
-    m_vars.push_back({"-", "-"});
+    m_vars.push_back({NESTED_FUNC_SPLIT, NESTED_FUNC_SPLIT});
     for (int i=0; i<func_vars.size(); ++i)
     {
         m_vars.push_back({m_defs[sym].variables[i], func_vars[i]});
