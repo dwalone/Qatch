@@ -21,28 +21,31 @@ enum Symbol {
     END_DEFINITION,
     FOR_LOOP,
     END_FOR_LOOP,
-    // Gates
+    // Default Gates
     IDENTITY,
     HADAMARD,
-    CONTROLLED_HADAMARD,
     X,
-    CONTROLLED_X,
     Y,
-    CONTROLLED_Y,
     Z,
+    CONTROLLED_HADAMARD,
+    CONTROLLED_X,
+    CONTROLLED_Y,
     CONTROLLED_Z,
+    // Default Angle Gates
     PHASE_SHIFT,
-    CONTROLLED_PHASE_SHIFT,
     ROTATION_X,
-    CONTROLLED_ROTATION_X,
     ROTATION_Y,
-    CONTROLLED_ROTATION_Y,
     ROTATION_Z,
+    CONTROLLED_PHASE_SHIFT,
+    CONTROLLED_ROTATION_X,
+    CONTROLLED_ROTATION_Y,
     CONTROLLED_ROTATION_Z,
+    // Default Multi-Qubit Gates
     SWAP,
     CONTROLLED_SWAP,
+    // Custom Gate
     CUSTOM,
-    // Other
+    // Skip
     SKIP
 };
 
@@ -78,6 +81,8 @@ public:
     void forLoop(int &line_number, std::istringstream &iss, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR);
     void endForLoop(int &line_number, std::istringstream &iss);
     void defaultGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ);
+    void defaultAngleGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ);
+    void defaultMultiQubitGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ);
     void customGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR);
     std::string replaceVar(std::string str, const std::string& from, const std::string& to);
     void parseControlQubits(int &line_number, std::vector<int> &cqs, std::istringstream &iss);

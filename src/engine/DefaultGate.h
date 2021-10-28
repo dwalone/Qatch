@@ -23,6 +23,12 @@ protected:
     std::vector<std::complex<double>> m_matrix;
 };
 
+class IdentityGate : public MatrixGate
+{
+public:
+	IdentityGate();
+	IdentityGate(int activeQubit);
+};
 
 class HadamardGate : public MatrixGate
 {

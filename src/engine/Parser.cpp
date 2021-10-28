@@ -97,8 +97,10 @@ void Parser::symHandler(int &line_number, std::istringstream &iss, Symbol &symbo
 
 void Parser::initialChecksHandler(int &line_number, Symbol &symbol)
 {
-    if (symbol==INITIALISE)
-    {
+    if (symbol >= IDENTITY && symbol <= CUSTOM) {
+        if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number);}  
+
+    } else if (symbol==INITIALISE) {
         pAssert(!m_inDef, "init cannot be declared in definition", line_number);
         pAssert(!m_inLoop, "init cannot be declared in loop", line_number);
         pAssert(!m_isInitialised, "Circuit already initialised", line_number);
@@ -117,9 +119,6 @@ void Parser::initialChecksHandler(int &line_number, Symbol &symbol)
     } else if (symbol == END_FOR_LOOP) {
         if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number); pAssert(m_inLoop, "No loop defined", line_number);}  
 
-    } else if (symbol >= IDENTITY && symbol <= CUSTOM) {
-        if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number);}  
-
     } else if (symbol == SKIP) {
         ;
     } else {
@@ -129,8 +128,44 @@ void Parser::initialChecksHandler(int &line_number, Symbol &symbol)
 
 void Parser::commandHandler(int &line_number, std::istringstream &iss, Symbol &symbol, std::string &symbolstr, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
 {
-    if (symbol==INITIALISE)
+
+    if (
+        symbol == HADAMARD ||
+        symbol == X ||
+        symbol == Y ||
+        symbol == Z ||
+        symbol == CONTROLLED_HADAMARD ||
+        symbol == CONTROLLED_X ||
+        symbol == CONTROLLED_Y ||
+        symbol == CONTROLLED_Z
+        ) 
     {
+        defaultGate(line_number, iss, symbol, gateList, nQ);
+
+    } else if (
+        symbol == PHASE_SHIFT ||
+        symbol == ROTATION_X ||
+        symbol == ROTATION_Y ||
+        symbol == ROTATION_Z ||
+        symbol == CONTROLLED_PHASE_SHIFT ||
+        symbol == CONTROLLED_ROTATION_X ||
+        symbol == CONTROLLED_ROTATION_Y ||
+        symbol == CONTROLLED_ROTATION_Z
+        ) 
+    {
+        defaultAngleGate(line_number, iss, symbol, gateList, nQ);
+
+    } else if (
+        symbol == SWAP ||
+        symbol == CONTROLLED_SWAP
+        )
+    {
+        defaultMultiQubitGate(line_number, iss, symbol, gateList, nQ);
+
+    } else if (symbol==CUSTOM) {
+        customGate(line_number, iss, symbolstr, gateList, nQ, qR);
+    
+    } else if (symbol==INITIALISE) {
         initialise(line_number, iss, nQ, qR);
 
     } else if (symbol == DEFINITION) {
@@ -145,17 +180,104 @@ void Parser::commandHandler(int &line_number, std::istringstream &iss, Symbol &s
     } else if (symbol == END_FOR_LOOP) {
         endForLoop(line_number, iss);
 
-    } else if (symbol >= IDENTITY && symbol < CUSTOM) {
-        defaultGate(line_number, iss, symbol, gateList, nQ);
-
-    } else if (symbol == CUSTOM) {
-        customGate(line_number, iss, symbolstr, gateList, nQ, qR);
-
     } else if (symbol == SKIP) {
         ;
     } else {
         pAssert(false, "Unknown command error", line_number);  
     }
+}
+
+void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
+{
+    // Initalise command variables
+    int aq;
+    parseQubit(nQ, aq, iss);
+    switch (symbol)
+    {
+        case IDENTITY : gateList.push_back(std::make_unique<IdentityGate>(aq)); break;
+        case HADAMARD : gateList.push_back(std::make_unique<HadamardGate>(aq)); break;
+        case X :        gateList.push_back(std::make_unique<XGate>(aq)); break;
+        case Y :        gateList.push_back(std::make_unique<YGate>(aq)); break;
+        case Z :        gateList.push_back(std::make_unique<ZGate>(aq)); break;
+    }
+    std::vector<int> cqs;
+    parseControlQubits(nQ,cqs, iss);
+    switch (symbol)
+    {
+        case CONTROLLED_HADAMARD :  gateList.push_back(std::make_unique<HadamardGate>(aq, cqs)); break;
+        case CONTROLLED_X :         gateList.push_back(std::make_unique<XGate>(aq, cqs)); break;
+        case CONTROLLED_Y :         gateList.push_back(std::make_unique<YGate>(aq, cqs)); break;
+        case CONTROLLED_Z :         gateList.push_back(std::make_unique<ZGate>(aq, cqs)); break;
+    }
+}
+
+void Parser::defaultAngleGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
+{
+    int aq;
+    double ph;
+    parseQubit(nQ, aq, iss);
+    parseAngle(nQ, ph, iss);
+    switch (symbol)
+    {
+        case PHASE_SHIFT :  gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph)); break;
+        case ROTATION_X :   gateList.push_back(std::make_unique<RotationXGate>(aq, ph)); break;
+        case ROTATION_Y :   gateList.push_back(std::make_unique<RotationYGate>(aq, ph)); break;
+        case ROTATION_Z :   gateList.push_back(std::make_unique<RotationZGate>(aq, ph)); break;
+    }
+    std::vector<int> cqs;
+    parseControlQubits(nQ, cqs, iss);
+    switch (symbol)
+    {
+        case CONTROLLED_PHASE_SHIFT :   gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs)); break;
+        case CONTROLLED_ROTATION_X :    gateList.push_back(std::make_unique<RotationXGate>(aq, ph, cqs)); break;
+        case CONTROLLED_ROTATION_Y :    gateList.push_back(std::make_unique<RotationYGate>(aq, ph, cqs)); break;
+        case CONTROLLED_ROTATION_Z :    gateList.push_back(std::make_unique<RotationZGate>(aq, ph, cqs)); break;
+    }
+}
+
+void Parser::defaultMultiQubitGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
+{
+    int aq;
+    int q2;
+    parseQubit(nQ, aq, iss);
+    parseQubit(nQ, q2, iss);
+    switch (symbol)
+    {
+        case SWAP : gateList.push_back(std::make_unique<SwapGate>(aq, q2)); break;
+    }
+    std::vector<int> cqs;
+    parseControlQubits(nQ, cqs, iss);
+    switch (symbol)
+    {
+        case CONTROLLED_SWAP : gateList.push_back(std::make_unique<SwapGate>(aq, q2)); break;        
+    }
+}
+
+void Parser::customGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR)
+{
+    std::vector<std::unique_ptr<Gate>> gates;
+    int var;
+    std::vector<std::string> func_vars;
+    while (iss>>var) 
+    {
+        func_vars.push_back(std::to_string(var));
+    }
+    pAssert(func_vars.size() == m_defs[sym].variables.size(), "invalid number of vars", line_number);
+    m_vars.push_back({"-", "-"});
+    for (int i=0; i<func_vars.size(); ++i)
+    {
+        m_vars.push_back({m_defs[sym].variables[i], func_vars[i]});
+    }
+    for (int cg_line_number=m_defs[sym].def_line+1; cg_line_number<m_defs[sym].endef_line; ++cg_line_number)
+    {
+        parseLine(cg_line_number, m_lines[cg_line_number-1], gates, nQ, qR);
+    }
+    gateList.push_back(std::make_unique<CustomGate>(sym, std::move(gates)));
+    for (int i=0; i<func_vars.size(); ++i)
+    {
+        m_vars.pop_back();
+    }
+    m_vars.pop_back();
 }
 
 void Parser::initialise(int &line_number, std::istringstream &iss, int &nQ, std::vector<c> &qR)
@@ -261,67 +383,6 @@ void Parser::endForLoop(int &line_number, std::istringstream &iss)
     iss>>check_extra;
     pAssert(!(iss>>check_extra), "invalid syntax", line_number);
     m_loops.back().endloop_line = line_number;
-}
-
-void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
-{
-    // Initalise command variables
-    int aq;
-    int sq;
-    double ph;
-    std::vector<int> cqs;
-    // Command Action
-    switch (symbol)
-    {
-        case HADAMARD : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<HadamardGate>(aq));} break;
-        case X : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<XGate>(aq));} break;
-        case Y : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<YGate>(aq));} break;
-        case Z : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<ZGate>(aq));} break;
-        case PHASE_SHIFT : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph));} break;
-        case ROTATION_X : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph));} break;
-        case ROTATION_Y : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph));} break;
-        case ROTATION_Z : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph));} break;
-        case SWAP : {parseQubit(nQ, aq, iss); parseQubit(nQ, sq, iss); gateList.push_back(std::make_unique<SwapGate>(aq, sq));} break;
-        case CONTROLLED_HADAMARD : {parseQubit(nQ, aq, iss); parseControlQubits(nQ,cqs, iss); gateList.push_back(std::make_unique<HadamardGate>(aq, cqs));} break;
-        case CONTROLLED_X : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<XGate>(aq, cqs));} break;
-        case CONTROLLED_Y : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<YGate>(aq, cqs));} break;
-        case CONTROLLED_Z : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<ZGate>(aq, cqs));} break;
-        case CONTROLLED_PHASE_SHIFT : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs));} break;
-        case CONTROLLED_ROTATION_X : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph, cqs));} break;
-        case CONTROLLED_ROTATION_Y : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph, cqs));} break;
-        case CONTROLLED_ROTATION_Z : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph, cqs));} break;
-        case CONTROLLED_SWAP : {parseQubit(nQ, aq, iss); parseQubit(nQ, sq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<SwapGate>(aq, sq, cqs));} 
-    }
-}
-
-void Parser::customGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR)
-{
-    std::vector<std::unique_ptr<Gate>> gates;
-    std::string line;
-    int var;
-    int i=0;
-    std::vector<std::string> func_vars;
-    while (iss>>var) 
-    {
-        func_vars.push_back(std::to_string(var));
-    }
-    pAssert(func_vars.size() == m_defs[sym].variables.size(), "invalid number of vars", line_number);
-    m_vars.push_back({"-", "-"});
-    for (int i=0; i<func_vars.size(); ++i)
-    {
-        m_vars.push_back({m_defs[sym].variables[i], func_vars[i]});
-    }
-    for (int cg_line_number=m_defs[sym].def_line+1; cg_line_number<m_defs[sym].endef_line; ++cg_line_number)
-    {
-        line = m_lines[cg_line_number-1];
-        parseLine(cg_line_number, line, gates, nQ, qR);
-    }
-    gateList.push_back(std::make_unique<CustomGate>(sym, std::move(gates)));
-    for (int i=0; i<func_vars.size(); ++i)
-    {
-        m_vars.pop_back();
-    }
-    m_vars.pop_back();
 }
 
 std::string Parser::replaceVar(std::string str, const std::string& from, const std::string& to) {
