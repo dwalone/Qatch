@@ -68,8 +68,9 @@ class Parser
 {
 public:
     Parser();
-    void parse(std::string filename, std::vector<std::unique_ptr<Gate>> &m_gateList, int &nQ, std::vector<c> &qR);
-    void readFile(std::string &filename);
+    void parse(std::vector<std::unique_ptr<Gate>> &m_gateList, int &nQ, std::vector<c> &qR);
+    void scanLines(std::string &filename);
+    void reset();
     void parseLine(int &line_number, std::string &line, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR);
     void formatLine(int &line_number,std::string &line);
     void symHandler(int &line_number, std::istringstream &iss, Symbol &symbol, std::string &symbolstr);

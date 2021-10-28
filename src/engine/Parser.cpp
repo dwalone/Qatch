@@ -1,7 +1,7 @@
 #include "Parser.h"
 
 const double pi = acos(-1.0);
-const std::string pi_str = "3.141592653589793238462643383279502884197169399375";
+const std::string pi_str = "3.14159265358979";
 
 
 
@@ -36,19 +36,19 @@ Parser::Parser()
     m_inLoop = false;
 }
 
-void Parser::parse(std::string filename, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
+void Parser::parse(std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
 {
-    readFile(filename);
     int line_number = 0; 
     while (line_number<m_lines.size())  
     {
         ++line_number;
         parseLine(line_number, m_lines[line_number-1], gateList, nQ, qR); 
     } 
-
+    pAssert(!m_inDef, "EOF - definition not closed", line_number);
+    pAssert(!m_inLoop, "EOF - loop not closed", line_number);
 }
 
-void Parser::readFile(std::string &filename)
+void Parser::scanLines(std::string &filename)
 {
     std::ifstream infile(filename);
     std::string line;
@@ -56,6 +56,17 @@ void Parser::readFile(std::string &filename)
     {
         m_lines.push_back(line);        
     }
+}
+
+void Parser::reset()
+{
+    m_isInitialised = false;
+    m_symbol_map;
+    for (auto it = m_defs.begin(); it != m_defs.end(); ++it)
+    {
+        m_symbol_map.erase(m_symbol_map.find(it->first));
+    }
+    m_defs.clear();
 }
 
 void Parser::parseLine(int &line_number, std::string &line, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
@@ -117,7 +128,8 @@ void Parser::initialChecksHandler(int &line_number, Symbol &symbol)
         if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number);}   
 
     } else if (symbol == END_FOR_LOOP) {
-        if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number); pAssert(m_inLoop, "No loop defined", line_number);}  
+        if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number); 
+                                            pAssert(m_inLoop, "No loop defined", line_number);}  
 
     } else if (symbol == SKIP) {
         ;
@@ -194,20 +206,22 @@ void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbo
     parseQubit(nQ, aq, iss);
     switch (symbol)
     {
-        case IDENTITY : gateList.push_back(std::make_unique<IdentityGate>(aq)); break;
-        case HADAMARD : gateList.push_back(std::make_unique<HadamardGate>(aq)); break;
-        case X :        gateList.push_back(std::make_unique<XGate>(aq)); break;
-        case Y :        gateList.push_back(std::make_unique<YGate>(aq)); break;
-        case Z :        gateList.push_back(std::make_unique<ZGate>(aq)); break;
+        case IDENTITY : gateList.push_back(std::make_unique<IdentityGate>(aq)); return;
+        case HADAMARD : gateList.push_back(std::make_unique<HadamardGate>(aq)); return;
+        case X :        gateList.push_back(std::make_unique<XGate>(aq)); return;
+        case Y :        gateList.push_back(std::make_unique<YGate>(aq)); return;
+        case Z :        gateList.push_back(std::make_unique<ZGate>(aq)); return;
+        return;
     }
     std::vector<int> cqs;
     parseControlQubits(nQ,cqs, iss);
     switch (symbol)
     {
-        case CONTROLLED_HADAMARD :  gateList.push_back(std::make_unique<HadamardGate>(aq, cqs)); break;
-        case CONTROLLED_X :         gateList.push_back(std::make_unique<XGate>(aq, cqs)); break;
-        case CONTROLLED_Y :         gateList.push_back(std::make_unique<YGate>(aq, cqs)); break;
-        case CONTROLLED_Z :         gateList.push_back(std::make_unique<ZGate>(aq, cqs)); break;
+        case CONTROLLED_HADAMARD :  gateList.push_back(std::make_unique<HadamardGate>(aq, cqs)); return;
+        case CONTROLLED_X :         gateList.push_back(std::make_unique<XGate>(aq, cqs)); return;
+        case CONTROLLED_Y :         gateList.push_back(std::make_unique<YGate>(aq, cqs)); return;
+        case CONTROLLED_Z :         gateList.push_back(std::make_unique<ZGate>(aq, cqs)); return;
+        return;
     }
 }
 
@@ -219,19 +233,19 @@ void Parser::defaultAngleGate(int &line_number, std::istringstream &iss, Symbol 
     parseAngle(nQ, ph, iss);
     switch (symbol)
     {
-        case PHASE_SHIFT :  gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph)); break;
-        case ROTATION_X :   gateList.push_back(std::make_unique<RotationXGate>(aq, ph)); break;
-        case ROTATION_Y :   gateList.push_back(std::make_unique<RotationYGate>(aq, ph)); break;
-        case ROTATION_Z :   gateList.push_back(std::make_unique<RotationZGate>(aq, ph)); break;
+        case PHASE_SHIFT :  gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph)); return;
+        case ROTATION_X :   gateList.push_back(std::make_unique<RotationXGate>(aq, ph)); return;
+        case ROTATION_Y :   gateList.push_back(std::make_unique<RotationYGate>(aq, ph)); return;
+        case ROTATION_Z :   gateList.push_back(std::make_unique<RotationZGate>(aq, ph)); return;
     }
     std::vector<int> cqs;
     parseControlQubits(nQ, cqs, iss);
     switch (symbol)
     {
-        case CONTROLLED_PHASE_SHIFT :   gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs)); break;
-        case CONTROLLED_ROTATION_X :    gateList.push_back(std::make_unique<RotationXGate>(aq, ph, cqs)); break;
-        case CONTROLLED_ROTATION_Y :    gateList.push_back(std::make_unique<RotationYGate>(aq, ph, cqs)); break;
-        case CONTROLLED_ROTATION_Z :    gateList.push_back(std::make_unique<RotationZGate>(aq, ph, cqs)); break;
+        case CONTROLLED_PHASE_SHIFT :   gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs)); return;
+        case CONTROLLED_ROTATION_X :    gateList.push_back(std::make_unique<RotationXGate>(aq, ph, cqs)); return;
+        case CONTROLLED_ROTATION_Y :    gateList.push_back(std::make_unique<RotationYGate>(aq, ph, cqs)); return;
+        case CONTROLLED_ROTATION_Z :    gateList.push_back(std::make_unique<RotationZGate>(aq, ph, cqs)); return;
     }
 }
 
@@ -243,13 +257,13 @@ void Parser::defaultMultiQubitGate(int &line_number, std::istringstream &iss, Sy
     parseQubit(nQ, q2, iss);
     switch (symbol)
     {
-        case SWAP : gateList.push_back(std::make_unique<SwapGate>(aq, q2)); break;
+        case SWAP : gateList.push_back(std::make_unique<SwapGate>(aq, q2)); return;
     }
     std::vector<int> cqs;
     parseControlQubits(nQ, cqs, iss);
     switch (symbol)
     {
-        case CONTROLLED_SWAP : gateList.push_back(std::make_unique<SwapGate>(aq, q2)); break;        
+        case CONTROLLED_SWAP : gateList.push_back(std::make_unique<SwapGate>(aq, q2)); return;        
     }
 }
 
@@ -298,12 +312,10 @@ void Parser::initialise(int &line_number, std::istringstream &iss, int &nQ, std:
 
 void Parser::definition(int &line_number, std::istringstream &iss)
 {
-    // Initalise command variables
     std::vector<std::string> def_vars;
     std::string def_name;
     DefinitionData data;
     std::string var;
-    // Special checks
     pAssert(!(!(iss>>def_name)), "empty def name", line_number);
     pAssert(m_symbol_map.find(def_name) == m_symbol_map.end(), "Name already defined - '"+def_name+"'", line_number);
     pAssert(!def_name.empty() && def_name.find_first_not_of("0123456789") != std::string::npos, "Invalid name, name can't be a number - '"+def_name+"'", line_number);
@@ -312,26 +324,20 @@ void Parser::definition(int &line_number, std::istringstream &iss)
             pAssert(var.rfind("$", 0) == 0, "var doesnt start with $", line_number);
             def_vars.push_back(var);
         }
-    // Command Action
     data.def_line = line_number;
     data.variables = def_vars;
     m_defs.emplace(def_name, data);
     m_currentDefName = def_name; 
     m_symbol_map[def_name] = CUSTOM;
-    // Set environment variables
     m_inDef = true;
 }
 
 void Parser::endDefinition(int &line_number, std::istringstream &iss)
 {
-    // Initialise command variables
     std::string check_extra;
-    // Special checks
     iss>>check_extra;
     pAssert(!(iss>>check_extra), "invalid syntax", line_number);
-    // Command action
     m_defs[m_currentDefName].endef_line = line_number;
-    // set environment variables
     m_inDef = false;
 }
 
@@ -364,7 +370,7 @@ void Parser::forLoop(int &line_number, std::istringstream &iss, std::vector<std:
     for (int i=0; i<loopCounter.size(); ++i)
     {
         m_vars[loop_idx].second = std::to_string(m_loops[loop_num].loop_counter[i]);
-        for (lp_line_number=m_loops[loop_num].loop_line+1; lp_line_number<m_loops[loop_num].endloop_line; ++lp_line_number)
+        for (lp_line_number=m_loops[loop_num].loop_line+1; lp_line_number<=m_loops[loop_num].endloop_line; ++lp_line_number)
         {
             line_number = lp_line_number;
             line = m_lines[line_number-1];        
@@ -372,13 +378,13 @@ void Parser::forLoop(int &line_number, std::istringstream &iss, std::vector<std:
         }
     }
     m_loops.pop_back();
+    m_inLoop = (m_loops.size()!=0); 
     line_number = lp_line_number;
     m_vars.pop_back();   
 }
 
 void Parser::endForLoop(int &line_number, std::istringstream &iss)
 {
-    m_inLoop = (m_loops.size()!=0);
     std::string check_extra;
     iss>>check_extra;
     pAssert(!(iss>>check_extra), "invalid syntax", line_number);
@@ -389,7 +395,7 @@ std::string Parser::replaceVar(std::string str, const std::string& from, const s
     size_t start_pos = 0;
     while((start_pos = str.find(from, start_pos)) != std::string::npos) {
         str.replace(start_pos, from.length(), to);
-        start_pos += to.length(); // Handles case where 'to' is a substring of 'from'
+        start_pos += to.length();
     }
     return str;
 }

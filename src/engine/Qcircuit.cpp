@@ -9,7 +9,9 @@ Qcircuit::Qcircuit()
 
 void Qcircuit::readFile(std::string filename)
 {
-    m_parser.parse(filename, m_gateList, m_numQubits, m_qregister);
+    m_parser.scanLines(filename);
+    m_parser.parse(m_gateList, m_numQubits, m_qregister);
+    m_parser.reset();
 }
 
 void Qcircuit::run()
