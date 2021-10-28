@@ -199,11 +199,11 @@ void Parser::commandHandler(int &line_number, std::istringstream &iss, Symbol &s
     }
 }
 
-void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
+void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ)
 {
     // Initalise command variables
     int aq;
-    parseQubit(nQ, aq, iss);
+    parseQubit(nQ, aq, iss, nQ);
     switch (symbol)
     {
         case IDENTITY : gateList.push_back(std::make_unique<IdentityGate>(aq)); return;
@@ -214,7 +214,7 @@ void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbo
         return;
     }
     std::vector<int> cqs;
-    parseControlQubits(nQ,cqs, iss);
+    parseControlQubits(nQ,cqs, iss, nQ);
     switch (symbol)
     {
         case CONTROLLED_HADAMARD :  gateList.push_back(std::make_unique<HadamardGate>(aq, cqs)); return;
@@ -225,11 +225,11 @@ void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbo
     }
 }
 
-void Parser::defaultAngleGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
+void Parser::defaultAngleGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ)
 {
     int aq;
     double ph;
-    parseQubit(nQ, aq, iss);
+    parseQubit(nQ, aq, iss, nQ);
     parseAngle(nQ, ph, iss);
     switch (symbol)
     {
@@ -239,7 +239,7 @@ void Parser::defaultAngleGate(int &line_number, std::istringstream &iss, Symbol 
         case ROTATION_Z :   gateList.push_back(std::make_unique<RotationZGate>(aq, ph)); return;
     }
     std::vector<int> cqs;
-    parseControlQubits(nQ, cqs, iss);
+    parseControlQubits(nQ, cqs, iss, nQ);
     switch (symbol)
     {
         case CONTROLLED_PHASE_SHIFT :   gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs)); return;
@@ -249,32 +249,32 @@ void Parser::defaultAngleGate(int &line_number, std::istringstream &iss, Symbol 
     }
 }
 
-void Parser::defaultMultiQubitGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
+void Parser::defaultMultiQubitGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ)
 {
     int aq;
     int q2;
-    parseQubit(nQ, aq, iss);
-    parseQubit(nQ, q2, iss);
+    parseQubit(nQ, aq, iss, nQ);
+    parseQubit(nQ, q2, iss, nQ);
     switch (symbol)
     {
         case SWAP : gateList.push_back(std::make_unique<SwapGate>(aq, q2)); return;
     }
     std::vector<int> cqs;
-    parseControlQubits(nQ, cqs, iss);
+    parseControlQubits(nQ, cqs, iss, nQ);
     switch (symbol)
     {
         case CONTROLLED_SWAP : gateList.push_back(std::make_unique<SwapGate>(aq, q2)); return;        
     }
 }
 
-void Parser::customGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR)
+void Parser::customGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
 {
     std::vector<std::unique_ptr<Gate>> gates;
-    int var;
+    std::string var;
     std::vector<std::string> func_vars;
     while (iss>>var) 
     {
-        func_vars.push_back(std::to_string(var));
+        func_vars.push_back(std::to_string(eval(var, line_number)));
     }
     pAssert(func_vars.size() == m_defs[sym].variables.size(), "invalid number of vars", line_number);
     m_vars.push_back({NESTED_FUNC_SPLIT, NESTED_FUNC_SPLIT});
@@ -400,40 +400,47 @@ std::string Parser::replaceVar(std::string str, const std::string& from, const s
     return str;
 }
 
-void Parser::parseControlQubits(int &line_number, std::vector<int> &cqs, std::istringstream &iss)
+void Parser::parseControlQubits(int &line_number, std::vector<int> &cqs, std::istringstream &iss, int &nQ)
 {
     double result;
+    int cq;
     std::string cqstr;
     std::string cdstr;
     iss>>cdstr;
     pAssert(cdstr=="|", "delimeter needs to be |", line_number);
     while (iss>>cqstr)
     {
-        result = eval(cqstr);
-        pAssert(trunc(result)==result, "control qubit number must be integer", line_number);
+        result = eval(cqstr, line_number);
+        pAssert(trunc(result)==result, "Control qubit number must be integer", line_number);
+        cq = (int) result;
+        pAssert(cq>0 && cq<=nQ, "Control qubit numbers must be between 1 and "+std::to_string(nQ), line_number); 
+        pAssert(std::find(cqs.begin(), cqs.end(), cq) == cqs.end(), "Repeated control qubit - "+std::to_string(cq), line_number);   
         cqs.push_back((int) result);
     }
+    pAssert(cqs.size()>0, "Requires control qubit(s)", line_number);
 }
 
-void Parser::parseQubit(int &line_number, int &q, std::istringstream &iss)
+void Parser::parseQubit(int &line_number, int &q, std::istringstream &iss, int &nQ)
 {
     double result;
     std::string qstr;
-    pAssert(!(!(iss>>qstr)), "Requires qubit to be given", line_number);
-    result = eval(qstr);
-    pAssert(trunc(result)==result, "qubit number must be integer", line_number);
-    q = (int) result;        
+    pAssert(!(!(iss>>qstr)), "Requires active qubit", line_number);
+    result = eval(qstr, line_number);
+    pAssert(trunc(result)==result, "Active qubit number must be integer", line_number);
+    q = (int) result; 
+    pAssert(q>0 && q<=nQ, "Active qubit number must be between 1 and "+std::to_string(nQ), line_number);       
 }
 
 void Parser::parseAngle(int &line_number, double &phi, std::istringstream &iss)
 {
     std::string astr;
     pAssert(!(!(iss>>astr)), "Requires angle to be given", line_number);
-    phi = eval(astr);
+    phi = eval(astr, line_number);
 }
 
-double Parser::eval(std::string expr)
+double Parser::eval(std::string expr, int &line_number)
 {
+    pAssert(expr.find('$') == std::string::npos, "Undefined variable", line_number);
     std::string xxx;
     for (int i = 0; i < expr.length(); i++)
     {
@@ -468,7 +475,7 @@ double Parser::eval(std::string expr)
                 token += xxx[i];
                 i++;
             }
-            tok += std::to_string(eval(token));
+            tok += std::to_string(eval(token, line_number));
         }
         tok += xxx[i];
     }
@@ -477,12 +484,12 @@ double Parser::eval(std::string expr)
     {
         if (tok[i] == '+')
         {
-            return eval(tok.substr(0, i)) + eval(tok.substr(i+1, tok.length()-i-1));
+            return eval(tok.substr(0, i), line_number) + eval(tok.substr(i+1, tok.length()-i-1), line_number);
         } else if (tok[i] == '-')
         {
             if (tok.substr(0, i).length() != 0 && tok[i - 1] != '*' && tok[i - 1] != '/') 
             {
-                return eval(tok.substr(0, i)) + eval("-" + tok.substr(i + 1, tok.length() - i - 1)); 
+                return eval(tok.substr(0, i), line_number) + eval("-" + tok.substr(i + 1, tok.length() - i - 1), line_number); 
             }		
         }
     }
@@ -491,10 +498,10 @@ double Parser::eval(std::string expr)
     {
         if (tok[i] == '*')
         {
-            return eval(tok.substr(0, i)) * eval(tok.substr(i+1, tok.length()-i-1));
+            return eval(tok.substr(0, i), line_number) * eval(tok.substr(i+1, tok.length()-i-1), line_number);
         } else if (tok[i] == '/')
         {
-            return eval(tok.substr(0, i)) / eval(tok.substr(i+1, tok.length()-i-1));
+            return eval(tok.substr(0, i), line_number) / eval(tok.substr(i+1, tok.length()-i-1), line_number);
         }
     }
     return std::stod(tok.c_str());

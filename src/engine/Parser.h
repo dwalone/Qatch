@@ -89,18 +89,18 @@ private:
     void endDefinition(int &line_number, std::istringstream &iss);
     void forLoop(int &line_number, std::istringstream &iss, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR);
     void endForLoop(int &line_number, std::istringstream &iss);
-    void defaultGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ);
-    void defaultAngleGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ);
-    void defaultMultiQubitGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ);
-    void customGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR);
+    void defaultGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ);
+    void defaultAngleGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ);
+    void defaultMultiQubitGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ);
+    void customGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR);
 
     std::string replaceVar(std::string str, const std::string &from, const std::string &to);
 
-    void parseControlQubits(int &line_number, std::vector<int> &cqs, std::istringstream &iss);
-    void parseQubit(int &line_number, int &q, std::istringstream &iss);
+    void parseControlQubits(int &line_number, std::vector<int> &cqs, std::istringstream &iss, int &nQ);
+    void parseQubit(int &line_number, int &q, std::istringstream &iss, int &nQ);
     void parseAngle(int &line_number, double &phi, std::istringstream &iss); 
 
-    double eval(std::string expr);
+    double eval(std::string expr, int &line_number);
 
     void pAssert(bool condition, std::string statement, int line_number);
 
