@@ -3,35 +3,33 @@
 const double pi = acos(-1.0);
 const std::string pi_str = "3.141592653589793238462643383279502884197169399375";
 
+
+
 Parser::Parser()
 {
-    m_keywordTextLib = {
-        "init",
-        "def",
-        "endef",
-        "for",
-        "endfor"
-    };
-    m_gateTextLib = {
-        "H",
-        "CH",
-        "X",
-        "CX",
-        "Y",
-        "CY",
-        "Z",
-        "CZ",
-        "P",
-        "CP",
-        "RX",
-        "CRX",
-        "RY",
-        "CRY",
-        "RZ",
-        "CRZ",
-        "SWAP",
-        "CSWAP"
-    };
+    m_symbol_map["init"]    = INITIALISE;
+    m_symbol_map["def"]     = DEFINITION;
+    m_symbol_map["endef"]   = END_DEFINITION;
+    m_symbol_map["for"]     = FOR_LOOP;
+    m_symbol_map["endfor"]  = END_FOR_LOOP;
+    m_symbol_map["H"]       = HADAMARD;
+    m_symbol_map["CH"]      = CONTROLLED_HADAMARD;
+    m_symbol_map["X"]       = X;
+    m_symbol_map["CX"]      = CONTROLLED_X;
+    m_symbol_map["Y"]       = Y;
+    m_symbol_map["CY"]      = CONTROLLED_ROTATION_Y;
+    m_symbol_map["Z"]       = Z;
+    m_symbol_map["P"]       = PHASE_SHIFT;
+    m_symbol_map["CP"]      = CONTROLLED_PHASE_SHIFT;
+    m_symbol_map["RX"]      = ROTATION_X;
+    m_symbol_map["CRX"]     = CONTROLLED_ROTATION_X;
+    m_symbol_map["RY"]      = ROTATION_Y;
+    m_symbol_map["CRY"]     = CONTROLLED_ROTATION_Y;
+    m_symbol_map["RZ"]      = ROTATION_Z;
+    m_symbol_map["CRZ"]     = CONTROLLED_ROTATION_Z;
+    m_symbol_map["SWAP"]    = SWAP;
+    m_symbol_map["CSWAP"]   = CONTROLLED_SWAP;
+
     m_isInitialised = false;
     m_inDef = false;
     m_inLoop = false;
@@ -40,13 +38,7 @@ Parser::Parser()
 
 void Parser::parse(std::string filename, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
 {
-    m_filename = filename;
-    std::ifstream infile(filename);
-    std::string line;
-    while (std::getline(infile, line))
-    {
-        m_lines.push_back(line);        
-    }
+    readFile(filename);
     int line_number = 0; 
     while (line_number<m_lines.size())  
     {
@@ -56,186 +48,176 @@ void Parser::parse(std::string filename, std::vector<std::unique_ptr<Gate>> &gat
 
 }
 
-void Parser::parseLine(int &line_number, std::string &line, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
+void Parser::readFile(std::string &filename)
 {
-/*     for (int i=0; i< m_vars.size(); ++i)
+    std::ifstream infile(filename);
+    std::string line;
+    while (std::getline(infile, line))
     {
-        std::cout<<m_vars[i].first<<" "<<m_vars[i].second<<" "<<line_number<<std::endl ;
-    } */
-    std::cout<<std::endl;
-    m_lineExecuted = false;
-    std::string sym;
-    replaceVars(line_number, line);
-    line = rtrim(ltrim(line));
-    std::istringstream iss(line);
-    iss>>sym;
-    checkInit(line_number, iss, sym, nQ, qR);
-    checkDef(line_number, iss, sym);
-    checkEndef(line_number, iss, sym);
-    checkFor(line_number, iss, sym, gateList, nQ, qR);
-    checkEndfor(line_number, iss, sym);
-    checkNormalGate(line_number, iss, sym, gateList, nQ);
-    checkCustomGate(line_number, iss, sym, gateList, nQ, qR);
-    checkComment(line_number, sym);
-    checkEmpty(line_number, sym);
-    pAssert(m_lineExecuted, "Unknown symbol - '"+sym+"'", line_number);  
+        m_lines.push_back(line);        
+    }
 }
 
-void Parser::replaceVars(int &line_number,std::string &line)
+void Parser::parseLine(int &line_number, std::string &line, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
 {
+    formatLine(line_number, line);
+    std::istringstream iss(line);
+    Symbol symbol;
+    std::string symbolstr;
+    symHandler(line_number, iss, symbol, symbolstr);
+    initialChecksHandler(line_number, symbol);
+    commandHandler(line_number, iss, symbol, symbolstr, gateList, nQ, qR);
+}
+
+void Parser::formatLine(int &line_number,std::string &line)
+{
+    size_t start = line.find_first_not_of(" \n\r\t\f\v");
+    line = (start == std::string::npos) ? "" : line.substr(start);
+    size_t end = line.find_last_not_of(" \n\r\t\f\v");
+    line = (end == std::string::npos) ? "" : line.substr(0, end + 1);
     std::reverse(m_vars.begin(), m_vars.end());
     for (const std::pair<std::string, std::string>& var : m_vars) 
     {
         if (!var.first.compare("-")) {break;}
-        line = replaceAll(line, var.first, var.second);
+        line = replaceVar(line, var.first, var.second);
     }
     std::reverse(m_vars.begin(), m_vars.end());
 }
 
-void Parser::checkInit(int &line_number, std::istringstream &iss, std::string &sym, int &nQ, std::vector<c> &qR)
+void Parser::symHandler(int &line_number, std::istringstream &iss, Symbol &symbol, std::string &symbolstr)
 {
-    if (sym != "init") {return;}
+    iss >> symbolstr;
+    if (symbolstr.rfind("//", 0) == 0 || symbolstr.empty()) {symbol = SKIP;}
+    else 
+    {
+        pAssert(m_symbol_map.count(symbolstr) > 0, "Symbol not found - '"+symbolstr+"'", line_number);
+        symbol = m_symbol_map[symbolstr];
+    }
+}
+
+void Parser::initialChecksHandler(int &line_number, Symbol &symbol)
+{
+    if (symbol==INITIALISE)
+    {
+        pAssert(!m_inDef, "init cannot be declared in definition", line_number);
+        pAssert(!m_inLoop, "init cannot be declared in loop", line_number);
+        pAssert(!m_isInitialised, "Circuit already initialised", line_number);
+
+    } else if (symbol == DEFINITION) {
+        pAssert(!m_inDef, "def cannot be declared in definition", line_number);
+        pAssert(!m_inLoop, "def cannot be declared in loop", line_number);
+
+    } else if (symbol == END_DEFINITION) {
+        pAssert(!m_inLoop, "endef cannot be declared in loop", line_number);
+        pAssert(m_inDef, "No function defined", line_number);   
+
+    } else if (symbol == FOR_LOOP) {
+        if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number);}   
+
+    } else if (symbol == END_FOR_LOOP) {
+        if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number);}  
+        pAssert(m_inLoop, "No loop defined", line_number);
+
+    } else if (symbol >= IDENTITY && symbol <= CUSTOM) {
+        if (m_inDef) {symbol = SKIP;} else {pAssert(m_isInitialised, "Circuit must be initialised", line_number);}  
+
+    } else if (symbol == SKIP) {
+        ;
+    } else {
+        pAssert(false, "Unknown initial checks error", line_number);
+    }
+}
+
+void Parser::commandHandler(int &line_number, std::istringstream &iss, Symbol &symbol, std::string &symbolstr, std::vector<std::unique_ptr<Gate>> &gateList, int &nQ, std::vector<c> &qR)
+{
+    if (symbol==INITIALISE)
+    {
+        initialise(line_number, iss, nQ, qR);
+
+    } else if (symbol == DEFINITION) {
+        definition(line_number, iss);
+
+    } else if (symbol == END_DEFINITION) {
+        endDefinition(line_number, iss);
+
+    } else if (symbol == FOR_LOOP) {
+        forLoop(line_number, iss, gateList, nQ, qR);
+
+    } else if (symbol == END_FOR_LOOP) {
+        endForLoop(line_number, iss);
+
+    } else if (symbol >= IDENTITY && symbol < CUSTOM) {
+        defaultGate(line_number, iss, symbol, gateList, nQ);
+
+    } else if (symbol == CUSTOM) {
+        customGate(line_number, iss, symbolstr, gateList, nQ, qR);
+
+    } else if (symbol == SKIP) {
+        ;
+    } else {
+        pAssert(false, "Unknown command error", line_number);  
+    }
+}
+
+void Parser::initialise(int &line_number, std::istringstream &iss, int &nQ, std::vector<c> &qR)
+{
     int n;
     std::string check_extra;
-    pAssert(!m_inDef, "init cannot be declared in definition", line_number);
-    pAssert(!m_inLoop, "init cannot be declared in loop", line_number);
-    pAssert(!m_isInitialised, "Circuit already initialised", line_number);
+    // Special Checks
     pAssert(!(!(iss>>n)), "no number of qubits given", line_number);
     pAssert(n>0, "number of qubits must be greater than zero", line_number);
-    iss>>check_extra;
     pAssert(!(iss>>check_extra), "invalid syntax", line_number);
+    // Command action
     nQ = n;
     qR.resize(pow(2,n));
     qR[0]=c(1.0, 0.0);
+    // Set environment variables
     m_isInitialised = true;
-    m_lineExecuted = true;
-
 }
 
-void Parser::checkDef(int &line_number, std::istringstream &iss, std::string &sym)
+void Parser::definition(int &line_number, std::istringstream &iss)
 {
-    if (sym != "def") {return;}
-    pAssert(!m_inDef, "def cannot be declared in definition", line_number);
-    pAssert(!m_inLoop, "def cannot be declared in loop", line_number);
+    // Initalise command variables
     std::vector<std::string> def_vars;
     std::string def_name;
-    pAssert(!(!(iss>>def_name)), "empty def name", line_number);
-    checkValidName(line_number, def_name);
     DefinitionData data;
-    data.def_line = line_number;
     std::string var;
+    // Special checks
+    pAssert(!(!(iss>>def_name)), "empty def name", line_number);
+    pAssert(m_symbol_map.find(def_name) == m_symbol_map.end(), "Name already defined - '"+def_name+"'", line_number);
+    pAssert(!def_name.empty() && def_name.find_first_not_of("0123456789") != std::string::npos, "Invalid name, name can't be a number - '"+def_name+"'", line_number);
     while (iss>>var)
         {
             pAssert(var.rfind("$", 0) == 0, "var doesnt start with $", line_number);
             def_vars.push_back(var);
         }
+    // Command Action
+    data.def_line = line_number;
     data.variables = def_vars;
     m_defs.emplace(def_name, data);
     m_currentDefName = def_name; 
+    m_symbol_map[def_name] = CUSTOM;
+    // Set environment variables
     m_inDef = true;
     m_lineExecuted = true;
 }
 
-void Parser::checkEndef(int &line_number, std::istringstream &iss, std::string &sym)
+void Parser::endDefinition(int &line_number, std::istringstream &iss)
 {
-    if (sym != "endef") {return;}
-    pAssert(!m_inLoop, "endef cannot be declared in loop", line_number);
-    pAssert(m_inDef, "No function defined", line_number);
+    // Initialise command variables
     std::string check_extra;
+    // Special checks
     iss>>check_extra;
     pAssert(!(iss>>check_extra), "invalid syntax", line_number);
+    // Command action
     m_defs[m_currentDefName].endef_line = line_number;
+    // set environment variables
     m_inDef = false;
     m_lineExecuted = true;
 }
 
-void Parser::checkNormalGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
+void Parser::forLoop(int &line_number, std::istringstream &iss, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR)
 {
-    if (m_inDef) {m_lineExecuted=true; return;}
-    if (std::find(m_gateTextLib.begin(), m_gateTextLib.end(), sym) == m_gateTextLib.end()) {return;}
-    pAssert(m_isInitialised, "Circuit must be initialised", line_number);
-    int aq;
-    int sq;
-    double ph;
-    std::vector<int> cqs;
-    if (sym=="H") {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<HadamardGate>(aq));}
-    else if (sym=="X") {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<XGate>(aq));} 
-    else if (sym=="Y") {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<YGate>(aq));} 
-    else if (sym=="Z") {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<ZGate>(aq));}  
-    else if (sym=="P") {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph));}
-    else if (sym=="RX") {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph));}
-    else if (sym=="RY") {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph));}
-    else if (sym=="RZ") {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph));}
-    else if (sym=="SWAP") {parseQubit(nQ, aq, iss); parseQubit(nQ, sq, iss); gateList.push_back(std::make_unique<SwapGate>(aq, sq));}
-    else if (sym=="CH") {parseQubit(nQ, aq, iss); parseControlQubits(nQ,cqs, iss); gateList.push_back(std::make_unique<HadamardGate>(aq, cqs));}
-    else if (sym=="CX") {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<XGate>(aq, cqs));} 
-    else if (sym=="CY") {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<YGate>(aq, cqs));} 
-    else if (sym=="CZ") {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<ZGate>(aq, cqs));} 
-    else if (sym=="CP") {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs));}
-    else if (sym=="CRX") {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph, cqs));}
-    else if (sym=="CRY") {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph, cqs));}
-    else if (sym=="CRZ") {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph, cqs));}
-    else if (sym=="CSWAP") {parseQubit(nQ, aq, iss); parseQubit(nQ, sq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<SwapGate>(aq, sq, cqs));} 
-    else {return;}   
-    m_lineExecuted = true;
-}
-
-void Parser::checkCustomGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR)
-{
-    if (m_inDef) {m_lineExecuted=true; return;}
-    if (m_defs.count(sym) == 0) {return;}
-    pAssert(m_isInitialised, "Circuit must be initialised", line_number);
-    std::vector<std::unique_ptr<Gate>> gates;
-    std::string line;
-    int var;
-    int i=0;
-    std::vector<std::string> func_vars;
-    while (iss>>var) 
-    {
-        func_vars.push_back(std::to_string(var));
-    }
-    pAssert(func_vars.size() == m_defs[sym].variables.size(), "invalid number of vars", line_number);
-    m_vars.push_back({"-", "-"});
-    for (int i=0; i<func_vars.size(); ++i)
-    {
-        m_vars.push_back({m_defs[sym].variables[i], func_vars[i]});
-    }
-    for (int cg_line_number=m_defs[sym].def_line+1; cg_line_number<m_defs[sym].endef_line; ++cg_line_number)
-    {
-        line = m_lines[cg_line_number-1];
-        parseLine(cg_line_number, line, gates, nQ, qR);
-    }
-    gateList.push_back(std::make_unique<CustomGate>(sym, std::move(gates)));
-    for (int i=0; i<func_vars.size(); ++i)
-    {
-        m_vars.pop_back();
-    }
-    m_vars.pop_back();
-    m_lineExecuted = true;
-}
-
-void Parser::checkComment(int &line_number, std::string &sym)
-{
-    if (sym.rfind("//", 0) == 0) {m_lineExecuted=true; return;}
-}
-
-void Parser::checkEmpty(int &line_number, std::string &sym)
-{
-    if (sym.empty()) {m_lineExecuted = true; return;}
-}
-
-void Parser::checkValidName(int &line_number, std::string name)
-{
-    pAssert(std::find(m_keywordTextLib.begin(), m_keywordTextLib.end(), name) == m_keywordTextLib.end(), "Invalid name, already a keyword - '"+name+"'", line_number);
-    pAssert(std::find(m_gateTextLib.begin(), m_gateTextLib.end(), name) == m_gateTextLib.end(), "invalid name, already a gate - '"+name+"'", line_number);
-    pAssert(!m_defs.count(name), "Definition name already exists - '"+name+"'", line_number);
-    pAssert(!name.empty() && name.find_first_not_of("0123456789") != std::string::npos, "Invalid name, name can't be a number - '"+name+"'", line_number);
-}
-
-void Parser::checkFor(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR)
-{
-    if (m_inDef) {m_lineExecuted=true; return;}
-    if (sym != "for") {return;}
     m_inLoop = true;
     int loop_num = m_loops.size();
     std::string line;
@@ -276,11 +258,8 @@ void Parser::checkFor(int &line_number, std::istringstream &iss, std::string &sy
     m_lineExecuted = true;   
 }
 
-void Parser::checkEndfor(int &line_number, std::istringstream &iss, std::string &sym)
+void Parser::endForLoop(int &line_number, std::istringstream &iss)
 {
-    if (m_inDef) {m_lineExecuted=true; return;}
-    if (sym != "endfor") {return;}
-    pAssert(m_inLoop, "No loop defined", line_number);
     m_inLoop = (m_loops.size()!=0);
     std::string check_extra;
     iss>>check_extra;
@@ -289,23 +268,68 @@ void Parser::checkEndfor(int &line_number, std::istringstream &iss, std::string 
     m_lineExecuted = true;
 }
 
-
-
-
-
-std::string Parser::ltrim(const std::string &s)
+void Parser::defaultGate(int &line_number, std::istringstream &iss, Symbol symbol, std::vector<std::unique_ptr<Gate>> &gateList, int nQ)
 {
-    size_t start = s.find_first_not_of(" \n\r\t\f\v");
-    return (start == std::string::npos) ? "" : s.substr(start);
-}
- 
-std::string Parser::rtrim(const std::string &s)
-{
-    size_t end = s.find_last_not_of(" \n\r\t\f\v");
-    return (end == std::string::npos) ? "" : s.substr(0, end + 1);
+    // Initalise command variables
+    int aq;
+    int sq;
+    double ph;
+    std::vector<int> cqs;
+    // Command Action
+    switch (symbol)
+    {
+        case HADAMARD : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<HadamardGate>(aq));}
+        case X : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<XGate>(aq));} 
+        case Y : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<YGate>(aq));} 
+        case Z : {parseQubit(nQ, aq, iss); gateList.push_back(std::make_unique<ZGate>(aq));}  
+        case PHASE_SHIFT : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph));}
+        case ROTATION_X : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph));}
+        case ROTATION_Y : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph));}
+        case ROTATION_Z : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph));}
+        case SWAP : {parseQubit(nQ, aq, iss); parseQubit(nQ, sq, iss); gateList.push_back(std::make_unique<SwapGate>(aq, sq));}
+        case CONTROLLED_HADAMARD : {parseQubit(nQ, aq, iss); parseControlQubits(nQ,cqs, iss); gateList.push_back(std::make_unique<HadamardGate>(aq, cqs));}
+        case CONTROLLED_X : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<XGate>(aq, cqs));} 
+        case CONTROLLED_Y : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<YGate>(aq, cqs));} 
+        case CONTROLLED_Z : {parseQubit(nQ, aq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<ZGate>(aq, cqs));} 
+        case CONTROLLED_PHASE_SHIFT : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<PhaseShiftGate>(aq, ph, cqs));}
+        case CONTROLLED_ROTATION_X : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationXGate>(aq, ph, cqs));}
+        case CONTROLLED_ROTATION_Y : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationYGate>(aq, ph, cqs));}
+        case CONTROLLED_ROTATION_Z : {parseQubit(nQ, aq, iss); parseAngle(nQ, ph, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<RotationZGate>(aq, ph, cqs));}
+        case CONTROLLED_SWAP : {parseQubit(nQ, aq, iss); parseQubit(nQ, sq, iss); parseControlQubits(nQ, cqs, iss); gateList.push_back(std::make_unique<SwapGate>(aq, sq, cqs));} 
+    }
 }
 
-std::string Parser::replaceAll(std::string str, const std::string& from, const std::string& to) {
+void Parser::customGate(int &line_number, std::istringstream &iss, std::string &sym, std::vector<std::unique_ptr<Gate>> &gateList, int nQ, std::vector<c> &qR)
+{
+    std::vector<std::unique_ptr<Gate>> gates;
+    std::string line;
+    int var;
+    int i=0;
+    std::vector<std::string> func_vars;
+    while (iss>>var) 
+    {
+        func_vars.push_back(std::to_string(var));
+    }
+    pAssert(func_vars.size() == m_defs[sym].variables.size(), "invalid number of vars", line_number);
+    m_vars.push_back({"-", "-"});
+    for (int i=0; i<func_vars.size(); ++i)
+    {
+        m_vars.push_back({m_defs[sym].variables[i], func_vars[i]});
+    }
+    for (int cg_line_number=m_defs[sym].def_line+1; cg_line_number<m_defs[sym].endef_line; ++cg_line_number)
+    {
+        line = m_lines[cg_line_number-1];
+        parseLine(cg_line_number, line, gates, nQ, qR);
+    }
+    gateList.push_back(std::make_unique<CustomGate>(sym, std::move(gates)));
+    for (int i=0; i<func_vars.size(); ++i)
+    {
+        m_vars.pop_back();
+    }
+    m_vars.pop_back();
+}
+
+std::string Parser::replaceVar(std::string str, const std::string& from, const std::string& to) {
     size_t start_pos = 0;
     while((start_pos = str.find(from, start_pos)) != std::string::npos) {
         str.replace(start_pos, from.length(), to);
@@ -316,18 +340,16 @@ std::string Parser::replaceAll(std::string str, const std::string& from, const s
 
 void Parser::parseControlQubits(int &line_number, std::vector<int> &cqs, std::istringstream &iss)
 {
-    int cq;
-    char cd;
-    iss>>cd;
-    if (cd != '|')
+    double result;
+    std::string cqstr;
+    std::string cdstr;
+    iss>>cdstr;
+    pAssert(cdstr=="|", "delimeter needs to be |", line_number);
+    while (iss>>cqstr)
     {
-        std::cerr<<"delimeter needs to be |"<<std::endl;
-        exit(1);
-    } else {
-        while (iss>>cq)
-        {
-            cqs.push_back(cq);
-        }
+        result = eval(cqstr);
+        pAssert(trunc(result)==result, "control qubit number must be integer", line_number);
+        cqs.push_back((int) result);
     }
 }
 
@@ -358,7 +380,7 @@ double Parser::eval(std::string expr)
             xxx += expr[i];
         }
     }
-    xxx = replaceAll(xxx, "pi", pi_str);
+    xxx = replaceVar(xxx, "pi", pi_str);
     std::string tok = "";
     for (int i = 0; i < xxx.length(); i++)
     {
