@@ -49,10 +49,17 @@ void MatrixGate::act(std::vector<c> &qregister)
 }
 
 
+IdentityGate::IdentityGate() {};
+IdentityGate::IdentityGate(int activeQubit) 
+{
+    m_activeQubit = activeQubit;
+    m_matrix = {c(1.0, 0.0), c(0.0, 0.0), c(0.0, 0.0), c(1.0, 0.0)};
+
+}
+
 HadamardGate::HadamardGate() {};
 HadamardGate::HadamardGate(int activeQubit) 
 {
-    m_name = "fbejwkf";
     m_activeQubit = activeQubit;
     m_matrix = {c(1.0/(pow(2.0,0.5)), 0.0), c(1.0/(pow(2.0,0.5)), 0.0), c(1.0/(pow(2.0,0.5)), 0.0), c(-1.0/(pow(2.0,0.5)), 0.0)};
 
