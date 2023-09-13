@@ -1,4 +1,0 @@
-g++ src/main.cpp src/engine/*.cpp -o executables/Linux/qatch
-x86_64-w64-mingw32-g++ src/main.cpp src/engine/*.cpp -o executables/Windows/qatch
-
-executables/Linux/qatch examples/grover
